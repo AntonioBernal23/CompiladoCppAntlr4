@@ -26,10 +26,8 @@ public class Main {
         ParseTree arbol = parser.programa();
 
         if (!errores.hayErrores()) {
-            System.out.println("\n--- Declaraciones y usos reconocidos ---");
-            ParseTreeWalker.DEFAULT.walk(new ReporteListener(), arbol);
-            System.out.println("\n--- Arbol sintactico ---");
-            System.out.println(arbol.toStringTree(parser));
+            System.out.println("\n--- Sentencias reconocidas (con sangria por anidamiento) ---");
+            ParseTreeWalker.DEFAULT.walk(new ReporteListener(parser), arbol);
         }
         errores.imprimirReporte();
 

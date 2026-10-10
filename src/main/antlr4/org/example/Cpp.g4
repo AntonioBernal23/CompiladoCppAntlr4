@@ -11,34 +11,85 @@ sentencia
     : declaracionVariable
     | declaracionConstante
     | asignacion
+    | sentenciaIncremento
+    | sentenciaSalto
+    | estructuraControl
+    | bloque
+    | sentenciaExpresion
     ;
 
 // ---------- Tipos ----------
 tipo : INT | FLOAT | DOUBLE | CHAR | BOOL | STRING_T ;
 
 // ---------- Declaracion de variables ----------
-//   int x;      int a = 5, b = 10, c;
-declaracionVariable : tipo declarador (COMMA declarador)* SEMI ;
-
-declarador : ID (ASSIGN expresion)? ;
+declaracionVariable : declaracionSimple SEMI ;
+declaracionSimple   : tipo declarador (COMMA declarador)* ;
+declarador          : ID (ASSIGN expresion)? ;
 
 // ---------- Declaracion de constantes (siempre inicializadas) ----------
-//   const int MAX = 100;
 declaracionConstante : CONST tipo ID ASSIGN expresion SEMI ;
 
-// ---------- Uso de variables ----------
-//   x = 20;     a += b * 2;
-asignacion : ID operadorAsignacion expresion SEMI ;
+// ---------- Asignacion e incremento ----------
+asignacion       : asignacionSimple SEMI ;
+asignacionSimple : ID operadorAsignacion expresion ;
 
 operadorAsignacion
     : ASSIGN | PLUS_ASSIGN | MINUS_ASSIGN | MULT_ASSIGN | DIV_ASSIGN
     ;
 
-// ---------- Expresiones basicas ----------
-expresion : valor ( (PLUS | MINUS | MULT | DIV | MOD) valor )* ;
+sentenciaIncremento : incremento SEMI ;
+incremento : ID (INC | DEC) | (INC | DEC) ID ;
 
-valor
-    : INT_LIT
+sentenciaSalto : (BREAK | CONTINUE) SEMI ;
+
+// ---------- Expresion como sentencia ----------
+sentenciaExpresion : expresion SEMI ;
+
+// ---------- ESTRUCTURAS DE CONTROL ----------
+estructuraControl : sentenciaIf | sentenciaWhile | sentenciaFor ;
+
+bloque : LBRACE sentencia* RBRACE ;
+
+sentenciaIf
+    : IF LPAREN expresion RPAREN bloque ( ELSE ( bloque | sentenciaIf ) )?
+    ;
+
+sentenciaWhile
+    : WHILE LPAREN expresion RPAREN bloque
+    ;
+
+sentenciaFor
+    : FOR LPAREN inicializacion SEMI expresion SEMI actualizacion RPAREN bloque
+    ;
+
+inicializacion : declaracionSimple | asignacionSimple ;
+
+actualizacion  : asignacionSimple | incremento | expresion ;
+
+// ---------- EXPRESIONES (de menor a mayor precedencia) ----------
+//   ||   <   &&   <   !   <   comparacion   <   + -   <   * / %
+expresion : expresionLogica ;
+
+expresionLogica : terminoLogico ( OR terminoLogico )* ;
+
+terminoLogico : factorLogico ( AND factorLogico )* ;
+
+factorLogico
+    : NOT factorLogico
+    | comparacion
+    ;
+
+comparacion : expresionAritmetica ( opRelacional expresionAritmetica )? ;
+
+opRelacional : EQ | NEQ | LT | GT | LE | GE ;
+
+expresionAritmetica : termino ( (PLUS | MINUS) termino )* ;
+
+termino : factor ( (MULT | DIV | MOD) factor )* ;
+
+factor
+    : MINUS factor
+    | INT_LIT
     | FLOAT_LIT
     | STRING_LIT
     | CHAR_LIT
