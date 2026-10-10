@@ -11,7 +11,7 @@ public class Main {
     public static void main(String[] args) throws Exception {
         System.out.println(EQUIPO);
 
-        String archivo = args.length > 0 ? args[0] : "prueba.cpp";
+        String archivo = args.length > 0 ? args[0] : "prueba_valida.cpp";
         System.out.println("\n=== ANALISIS SINTACTICO: " + archivo + " ===");
 
         CppLexer lexer = new CppLexer(CharStreams.fromPath(Paths.get(archivo)));

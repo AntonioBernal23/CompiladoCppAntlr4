@@ -25,11 +25,13 @@ public class ErrorSintacticoListener extends BaseErrorListener {
         return esAritmetico(t) || esLogico(t) || esRelacional(t);
     }
 
-    // ---------- Contexto: en que estructura de control ocurre el error ----------
+    // ---------- Contexto: en que estructura ocurre el error ----------
     private static String nombreEstructura(RuleContext c) {
-        if (c instanceof CppParser.SentenciaIfContext)    return "if";
-        if (c instanceof CppParser.SentenciaWhileContext) return "while";
-        if (c instanceof CppParser.SentenciaForContext)   return "for";
+        if (c instanceof CppParser.SentenciaIfContext)        return "if";
+        if (c instanceof CppParser.SentenciaWhileContext)     return "while";
+        if (c instanceof CppParser.SentenciaForContext)       return "for";
+        if (c instanceof CppParser.DeclaracionMetodoContext)  return "metodo";
+        if (c instanceof CppParser.ClaseContext)              return "clase";
         return null;
     }
 
@@ -42,7 +44,7 @@ public class ErrorSintacticoListener extends BaseErrorListener {
         return null;
     }
 
-    /** Estructura solo si el error esta en su encabezado ( ... ), no dentro del bloque. */
+    /** Estructura solo si el error esta en su encabezado, no dentro de un bloque. */
     private static String encabezadoDe(RuleContext ctx) {
         for (RuleContext c = ctx; c != null; c = c.parent) {
             if (c instanceof CppParser.BloqueContext) return null;
@@ -52,10 +54,19 @@ public class ErrorSintacticoListener extends BaseErrorListener {
         return null;
     }
 
+    /** Prefijo para errores en condiciones de if/while y componentes de for. */
     private static String prefijo(String enc) {
-        if (enc == null) return "";
-        if (enc.equals("for")) return "Componente invalido en la estructura 'for'. ";
-        return "Condicion invalida en la estructura '" + enc + "'. ";
+        if ("for".equals(enc)) return "Componente invalido en la estructura 'for'. ";
+        if ("if".equals(enc) || "while".equals(enc))
+            return "Condicion invalida en la estructura '" + enc + "'. ";
+        return "";
+    }
+
+    /** Texto " en la estructura 'if'" / " en la declaracion de metodo". */
+    private static String enEstructura(String enc) {
+        if (enc == null || enc.equals("clase")) return "";
+        if (enc.equals("metodo")) return " en la declaracion de metodo";
+        return " en la estructura '" + enc + "'";
     }
 
     @Override
@@ -77,6 +88,34 @@ public class ErrorSintacticoListener extends BaseErrorListener {
         int tipo = actual.getType();
         int l = actual.getLine();
         int c = actual.getCharPositionInLine() + 1;
+
+        // 0. Errores reportados desde acciones de la gramatica (marcas '@@')
+        if (e == null && msg != null && msg.startsWith("@@")) {
+            int[] pos = finDe(previo, actual);
+            switch (msg) {
+                case "@@FALTA_COMA":
+                    registrar(pos[0], pos[1], "Parametro invalido en la declaracion de metodo: "
+                            + "falta ',' entre parametros.");
+                    return;
+                case "@@FALTAN_PARENTESIS":
+                    registrar(pos[0], pos[1], "Parentesis faltantes en la declaracion de metodo: "
+                            + "se esperaba '(' ... ')' despues del nombre '"
+                            + (previo != null ? previo.getText() : "") + "'.");
+                    return;
+                case "@@SIN_TIPO_RETORNO":
+                    registrar(l, c, "Tipo de retorno invalido en la declaracion de metodo: '"
+                            + actual.getText() + "' no declara un tipo de retorno.");
+                    return;
+                case "@@TIPO_RETORNO_INVALIDO":
+                    registrar(l, c, "Tipo de retorno invalido '" + actual.getText()
+                            + "' en la declaracion de metodo. Use int, float, double, char, "
+                            + "bool, string, void o un nombre de clase.");
+                    return;
+                default:
+                    registrar(l, c, msg);
+                    return;
+            }
+        }
 
         // 1. Errores que ya vienen marcados por el lexer
         if (tipo == CppLexer.BAD_ID) {
@@ -101,7 +140,8 @@ public class ErrorSintacticoListener extends BaseErrorListener {
         if (e instanceof NoViableAltException) {
             Token inicio = ((NoViableAltException) e).getStartToken();
             if (inicio.getType() == CppLexer.ID && tipo == CppLexer.ID
-                    && inicio.getTokenIndex() != actual.getTokenIndex()) {
+                    && inicio.getTokenIndex() != actual.getTokenIndex()
+                    && !(ctx instanceof CppParser.MiembroContext)) {
                 registrar(inicio.getLine(), inicio.getCharPositionInLine() + 1,
                         "Tipo no valido '" + inicio.getText() + "'. Los tipos validos son "
                                 + "'int', 'float', 'double', 'char', 'bool' y 'string'.");
@@ -109,26 +149,66 @@ public class ErrorSintacticoListener extends BaseErrorListener {
             }
         }
 
-        // 3. 'else' sin 'if'
+        // 3. Clases
+        if (ctx instanceof CppParser.ClaseContext) {
+            if (esperados.contains(CppLexer.LBRACE) && tipo != CppLexer.LBRACE) {
+                int[] pos = finDe(previo, actual);
+                registrar(pos[0], pos[1], "Cuerpo de clase invalido en la declaracion de 'class': "
+                        + "se esperaba '{' despues del nombre de la clase.");
+                return;
+            }
+            if (esperados.contains(CppLexer.ID) && !esperados.contains(CppLexer.INT)) {
+                int[] pos = finDe(previo, actual);
+                registrar(pos[0], pos[1], "Nombre de clase invalido en la declaracion de 'class': "
+                        + "se esperaba un identificador despues de 'class'.");
+                return;
+            }
+            if (tipo == Token.EOF && esperados.contains(CppLexer.RBRACE)) {
+                int[] pos = finDe(previo, actual);
+                registrar(pos[0], pos[1], "Cuerpo de clase invalido: falta '}' para cerrar la clase.");
+                return;
+            }
+        }
+        if (ctx instanceof CppParser.MiembroContext || ctx instanceof CppParser.ClaseContext) {
+            registrar(l, c, "Cuerpo de clase invalido en la declaracion de 'class': '"
+                    + actual.getText() + "' no es valido aqui. Solo se permiten variables, "
+                    + "constantes, metodos y modificadores de acceso.");
+            return;
+        }
+
+        // 4. Parametros de metodo
+        if (ctx instanceof CppParser.ParametroContext || ctx instanceof CppParser.TipoDatoContext
+                || ctx instanceof CppParser.ParametrosContext) {
+            if (esperados.contains(CppLexer.ID) && !esperados.contains(CppLexer.INT)) {
+                int[] pos = finDe(previo, actual);
+                registrar(pos[0], pos[1], "Parametro invalido en la declaracion de metodo: "
+                        + "falta el nombre del parametro despues del tipo.");
+            } else {
+                registrar(l, c, "Parametro invalido en la declaracion de metodo: se esperaba "
+                        + "un tipo y un nombre, pero se encontro '" + actual.getText() + "'.");
+            }
+            return;
+        }
+
+        // 5. 'else' sin 'if'
         if (tipo == CppLexer.ELSE) {
             registrar(l, c, "'else' sin 'if' correspondiente.");
             return;
         }
 
-        // 4. Parentesis
+        // 6. Parentesis
         if (tipo == CppLexer.RPAREN && previo != null && previo.getType() == CppLexer.LPAREN) {
             registrar(l, c, prefijo(enc) + "Parentesis vacios: falta la expresion entre '(' y ')'.");
             return;
         }
         if (tipo == CppLexer.RPAREN && !esperados.contains(CppLexer.INT_LIT)) {
             registrar(l, c, "Parentesis desbalanceados: ')' sin '(' correspondiente"
-                    + (enc != null ? " en la estructura '" + enc + "'" : "") + ".");
+                    + enEstructura(enc) + ".");
             return;
         }
         if (esperados.contains(CppLexer.RPAREN) && tipo != CppLexer.RPAREN) {
             int[] pos = finDe(previo, actual);
-            registrar(pos[0], pos[1], "Parentesis desbalanceados"
-                    + (enc != null ? " en la estructura '" + enc + "'" : "")
+            registrar(pos[0], pos[1], "Parentesis desbalanceados" + enEstructura(enc)
                     + ": falta cerrar con ')'.");
             return;
         }
@@ -141,14 +221,19 @@ public class ErrorSintacticoListener extends BaseErrorListener {
             return;
         }
 
-        // 5. Llaves y bloques
+        // 7. Llaves y bloques
         if (esperados.contains(CppLexer.LBRACE) && tipo != CppLexer.LBRACE) {
             String nombre = (previo != null && previo.getType() == CppLexer.ELSE)
                     ? "else" : estructuraDe(ctx);
             int[] pos = finDe(previo, actual);
-            registrar(pos[0], pos[1], "Bloque de sentencias faltante"
-                    + (nombre != null ? " en la estructura '" + nombre + "'" : "")
-                    + ": se esperaba '{'.");
+            if ("metodo".equals(nombre)) {
+                registrar(pos[0], pos[1], "Cuerpo de metodo faltante en la declaracion de metodo: "
+                        + "se esperaba '{'.");
+            } else {
+                registrar(pos[0], pos[1], "Bloque de sentencias faltante"
+                        + (nombre != null ? " en la estructura '" + nombre + "'" : "")
+                        + ": se esperaba '{'.");
+            }
             return;
         }
         if (tipo == CppLexer.RBRACE && !esperados.contains(CppLexer.RBRACE)) {
@@ -156,13 +241,14 @@ public class ErrorSintacticoListener extends BaseErrorListener {
             return;
         }
         if (tipo == Token.EOF && esperados.contains(CppLexer.RBRACE)) {
+            String n = estructuraDe(ctx);
             int[] pos = finDe(previo, actual);
             registrar(pos[0], pos[1], "Falta '}' para cerrar el bloque"
-                    + (estructuraDe(ctx) != null ? " de la estructura '" + estructuraDe(ctx) + "'" : "") + ".");
+                    + (n != null && !n.equals("clase") ? " de '" + n + "'" : "") + ".");
             return;
         }
 
-        // 6. Operadores sin operando
+        // 8. Operadores sin operando
         if (esperados.contains(CppLexer.INT_LIT)) {
             if (previo != null && esRelacional(previo.getType())) {
                 registrar(previo.getLine(), previo.getCharPositionInLine() + 1,
@@ -183,14 +269,14 @@ public class ErrorSintacticoListener extends BaseErrorListener {
             }
         }
 
-        // 7. Constante sin inicializar
+        // 9. Constante sin inicializar
         if (ctx instanceof CppParser.DeclaracionConstanteContext
                 && esperados.contains(CppLexer.ASSIGN)) {
             registrar(l, c, "Una constante debe inicializarse: const tipo NOMBRE = valor;");
             return;
         }
 
-        // 8. Se esperaba un nombre y llego un literal (ej. string 123;)
+        // 10. Se esperaba un nombre y llego un literal (ej. string 123;)
         if (esperados.contains(CppLexer.ID) && !esperados.contains(CppLexer.INT_LIT)
                 && (tipo == CppLexer.INT_LIT || tipo == CppLexer.FLOAT_LIT
                 || tipo == CppLexer.STRING_LIT || tipo == CppLexer.CHAR_LIT
@@ -200,14 +286,14 @@ public class ErrorSintacticoListener extends BaseErrorListener {
             return;
         }
 
-        // 9. Comparaciones encadenadas (a < b < c)
+        // 11. Comparaciones encadenadas (a < b < c)
         if (esRelacional(tipo) && esperados.contains(CppLexer.SEMI)) {
             registrar(l, c, "Comparacion invalida: no se pueden encadenar comparaciones ('"
                     + actual.getText() + "').");
             return;
         }
 
-        // 10. Falta punto y coma (se reporta al final de la linea anterior)
+        // 12. Falta punto y coma (se reporta al final de la linea anterior)
         if (esperados.contains(CppLexer.SEMI)) {
             int[] pos = finDe(previo, actual);
             if ("for".equals(enc)) {
@@ -219,14 +305,14 @@ public class ErrorSintacticoListener extends BaseErrorListener {
             return;
         }
 
-        // 11. Falta un valor o expresion (ej. int z = ;)
+        // 13. Falta un valor o expresion (ej. int z = ;)
         if (esperados.contains(CppLexer.INT_LIT)) {
             registrar(l, c, prefijo(enc) + "Se esperaba un valor o expresion pero se encontro '"
                     + actual.getText() + "'.");
             return;
         }
 
-        // 12. Cualquier otro error
+        // 14. Cualquier otro error
         registrar(l, c, "Token inesperado '" + actual.getText()
                 + "'. Se esperaba: " + esperados.toString(p.getVocabulary()));
     }

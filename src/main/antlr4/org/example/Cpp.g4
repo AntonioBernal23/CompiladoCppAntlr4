@@ -5,14 +5,67 @@ grammar Cpp;
    REGLAS DEL PARSER (minusculas)
    ===================================================================== */
 
-programa : sentencia* EOF ;
+programa : ( clase | sentencia )* EOF ;
 
+// ---------- CLASES Y METODOS ----------
+clase : CLASS ID LBRACE miembro* RBRACE SEMI? ;
+
+miembro
+    : modificadorAcceso
+    | declaracionMetodo
+    | declaracionVariable
+    | declaracionConstante
+    | metodoSinTipo
+    | metodoTipoInvalido
+    ;
+
+modificadorAcceso : ( PUBLIC | PRIVATE | PROTECTED ) COLON ;
+
+// tipoRetorno nombre ( parametros ) { cuerpo }
+// Produccion de error: si faltan los parentesis se reporta y se continua.
+declaracionMetodo
+    : tipoRetorno ID
+      ( LPAREN parametros? RPAREN
+      | { notifyErrorListeners("@@FALTAN_PARENTESIS"); }
+      )
+      bloque
+    ;
+
+// Produccion de error: metodo sin tipo de retorno (ej. calcular(int a) { })
+metodoSinTipo
+    : ID { notifyErrorListeners(_input.LT(-1), "@@SIN_TIPO_RETORNO", null); }
+      LPAREN parametros? RPAREN bloque
+    ;
+
+// Produccion de error: tipo de retorno que es un literal (ej. 123 calcular() { })
+metodoTipoInvalido
+    : tokenTipoInvalido { notifyErrorListeners(_input.LT(-1), "@@TIPO_RETORNO_INVALIDO", null); }
+      ID LPAREN parametros? RPAREN bloque
+    ;
+
+tokenTipoInvalido
+    : INT_LIT | FLOAT_LIT | STRING_LIT | CHAR_LIT | TRUE | FALSE | BAD_ID | BAD_NUMBER
+    ;
+
+// Produccion de error: si falta la coma entre parametros se reporta y se continua.
+parametros
+    : parametro ( ( COMMA | { notifyErrorListeners("@@FALTA_COMA"); } ) parametro )*
+    ;
+
+parametro : tipoDato ID ;
+
+tipoDato : tipo | ID ;
+
+tipoRetorno : tipoDato | VOID ;
+
+// ---------- SENTENCIAS ----------
 sentencia
     : declaracionVariable
     | declaracionConstante
     | asignacion
     | sentenciaIncremento
     | sentenciaSalto
+    | sentenciaReturn
     | estructuraControl
     | bloque
     | sentenciaExpresion
@@ -41,6 +94,8 @@ sentenciaIncremento : incremento SEMI ;
 incremento : ID (INC | DEC) | (INC | DEC) ID ;
 
 sentenciaSalto : (BREAK | CONTINUE) SEMI ;
+
+sentenciaReturn : RETURN expresion? SEMI ;
 
 // ---------- Expresion como sentencia ----------
 sentenciaExpresion : expresion SEMI ;
@@ -95,9 +150,14 @@ factor
     | CHAR_LIT
     | TRUE
     | FALSE
+    | llamada
     | ID
     | LPAREN expresion RPAREN
     ;
+
+// ---------- Llamada a metodo:  sumar(1, x + 2) ----------
+llamada    : ID LPAREN argumentos? RPAREN ;
+argumentos : expresion ( COMMA expresion )* ;
 
 /* =====================================================================
    REGLAS DEL LEXER (MAYUSCULAS)

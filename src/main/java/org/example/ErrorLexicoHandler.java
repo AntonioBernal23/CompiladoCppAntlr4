@@ -1,4 +1,4 @@
-// Antonio Bernal Martinez
+// BERNAL MARTINEZ ANTONIO
 package org.example;
 
 import org.antlr.v4.runtime.*;
