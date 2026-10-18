@@ -11,8 +11,8 @@ public class Main {
     public static void main(String[] args) throws Exception {
         System.out.println(EQUIPO);
 
-        String archivo = args.length > 0 ? args[0] : "prueba_valida.cpp";
-        System.out.println("\n=== ANALISIS SINTACTICO: " + archivo + " ===");
+        String archivo = args.length > 0 ? args[0] : "prueba_invalida.cpp";
+        System.out.println("\n=== ANALISIS: " + archivo + " ===");
 
         CppLexer lexer = new CppLexer(CharStreams.fromPath(Paths.get(archivo)));
         CppParser parser = new CppParser(new CommonTokenStream(lexer));
@@ -25,11 +25,21 @@ public class Main {
 
         ParseTree arbol = parser.programa();
 
-        if (!errores.hayErrores()) {
-            System.out.println("\n--- Sentencias reconocidas (con sangria por anidamiento) ---");
-            ParseTreeWalker.DEFAULT.walk(new ReporteListener(parser), arbol);
+        if (errores.hayErrores()) {
+            System.out.println("\n[FASE 1] Analisis lexico/sintactico: CON ERRORES "
+                    + "(no se ejecuta el analisis semantico)");
+            errores.imprimirReporte();
+        } else {
+            System.out.println("\n[FASE 1] Analisis lexico/sintactico: correcto");
+            System.out.println("[FASE 2] Analisis semantico: tabla de simbolos y tipos de datos");
+
+            AnalizadorSemantico semantico = new AnalizadorSemantico(parser);
+            ParseTreeWalker.DEFAULT.walk(semantico, arbol);
+
+            semantico.imprimirBitacora();
+            semantico.imprimirTabla();
+            semantico.imprimirReporte();
         }
-        errores.imprimirReporte();
 
         System.out.println("\n" + EQUIPO);
     }
