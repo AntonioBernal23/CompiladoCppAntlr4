@@ -17,6 +17,7 @@ public class Simbolo {
     public final int columna;
     public String valor;               // ultimo valor asignado (texto), o null
     public boolean inicializado;
+    public Object valorConst;          // valor constante conocido (Long, Double o Boolean), o null
     public final List<String> parametros = new ArrayList<>();  // solo METODO
 
     public Simbolo(String nombre, String tipo, Categoria categoria,

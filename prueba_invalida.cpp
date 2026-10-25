@@ -1,65 +1,54 @@
-// ===== Ejemplos del enunciado =====
-int x;
-float y = 3.5;
-x = y;
-int a;
-a = 5;
-float b;
-b = a;
-c = 10;
+// BERNAL MARTINEZ ANTONIO
+// ===== Base valida =====
+int edad = 25;
+string nombre = "Juan";
+float altura = 1.75;
+bool activo = true;
+char letra = 'z';
 
-// ===== Declaraciones =====
-int x;
-string texto = 25;
-bool flag = "si";
-int e = d + 1;
-int sinValor;
-int copia = sinValor + 1;
+// ===== 1. Operaciones con tipos no numericos =====
+int r1 = edad + nombre;                 // esperado: error
+int r2 = 5 + nombre;                    // esperado: error
+string r3 = nombre - nombre;            // esperado: error
+int r4 = -nombre;                       // esperado: error
+edad += nombre;                         // esperado: error
 
-// ===== Constantes =====
-const int LIMITE = 10;
-LIMITE = 20;
-LIMITE++;
+// ===== 2. Asignaciones incompatibles / conversion implicita =====
+int r5 = "hola";                        // esperado: error
+float r6 = edad;                        // esperado: error
+float r7 = 5 / 2;                       // esperado: error
+bool r8 = 1;                            // esperado: error
+char r9 = "a";                          // esperado: error
 
-// ===== Operaciones invalidas =====
-int r = "hola" * 2;
-int z = 10 / 0;
-bool ok = x == "a";
-int m = 5.5 % 2;
+// ===== 3. Division por cero =====
+int r10 = 10 / 0;                       // esperado: error
+int r11 = edad / 0;                     // esperado: error
+int r12 = 10 % 0;                       // esperado: error
+float r13 = altura / 0.0;               // esperado: error
 
-// ===== Condiciones y ambito del for =====
-if ("texto") { x = 1; }
-for (int i = 0; i < 3; i++) { }
-i = 5;
+// ===== 4. Operadores logicos con no booleanos =====
+bool r14 = true && 1;                   // esperado: error
+bool r15 = (edad > 5) && "texto";       // esperado: error
+bool r16 = !edad;                       // esperado: error
+bool r17 = edad || activo;              // esperado: error
 
-// ===== Clase: ambitos, retornos y llamadas =====
-class Prueba {
-    int miembro = 1;
-    int metodoA(int p) {
-        int interna = p + miembro;
-        return interna;
-    }
-    void metodoB() {
-        interna = 5;
-        return 1;
-    }
-    int metodoC(int p, int p) {
-        return "texto";
-    }
-    int metodoD() {
-        return;
-    }
-    int metodoA(int q) {
-        return q;
-    }
-    Desconocida metodoE() {
-        return 1;
-    }
-    void metodoF() {
-        int r1 = metodoA(1, 2);
-        int s1 = metodoA("hola");
-        int t1 = noExiste(3);
-        miembro();
-        int u1 = metodoB();
-    }
+// ===== 5. Comparaciones entre tipos incompatibles =====
+bool r18 = ("5" == 5);                  // esperado: error
+bool r19 = nombre < edad;               // esperado: error
+bool r20 = letra == nombre;             // esperado: error
+
+// ===== 6. Conversiones explicitas invalidas =====
+int r21 = static_cast<int>(nombre);           // esperado: error
+float r22 = static_cast<float>("3.5");        // esperado: error
+
+// ===== 7. Condiciones no booleanas =====
+if (edad) {                             // esperado: error
 }
+while (nombre) {                        // esperado: error
+}
+
+// ===== Contraste: estas SI son validas =====
+int ok1 = edad + 5;                     // esperado: 30
+bool ok2 = (edad > 5) && activo;        // esperado: true
+float ok3 = static_cast<float>(edad);   // esperado: 25
+bool ok4 = (5 == 5);                    // esperado: true

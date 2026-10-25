@@ -11,7 +11,8 @@ public class Main {
     public static void main(String[] args) throws Exception {
         System.out.println(EQUIPO);
 
-        String archivo = args.length > 0 ? args[0] : "prueba_invalida.cpp";
+        String archivo = args.length > 0 ? args[0] : "prueba_valida.cpp";
+        boolean verbose = args.length > 1 && args[1].equals("-v");   // -v: imprime la bitacora
         System.out.println("\n=== ANALISIS: " + archivo + " ===");
 
         CppLexer lexer = new CppLexer(CharStreams.fromPath(Paths.get(archivo)));
@@ -31,12 +32,18 @@ public class Main {
             errores.imprimirReporte();
         } else {
             System.out.println("\n[FASE 1] Analisis lexico/sintactico: correcto");
-            System.out.println("[FASE 2] Analisis semantico: tabla de simbolos y tipos de datos");
+            System.out.println("[FASE 2] Analisis semantico: validacion de tipos en expresiones");
 
             AnalizadorSemantico semantico = new AnalizadorSemantico(parser);
-            ParseTreeWalker.DEFAULT.walk(semantico, arbol);
+            try {
+                ParseTreeWalker.DEFAULT.walk(semantico, arbol);
+            } catch (RuntimeException ex) {
+                System.out.println("\nError: Excepcion lanzada durante la evaluacion de expresiones: "
+                        + ex);
+            }
 
-            semantico.imprimirBitacora();
+            if (verbose) semantico.imprimirBitacora();
+            semantico.imprimirEvaluaciones();
             semantico.imprimirTabla();
             semantico.imprimirReporte();
         }

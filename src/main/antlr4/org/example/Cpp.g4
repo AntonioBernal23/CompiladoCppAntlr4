@@ -150,6 +150,7 @@ factor
     | CHAR_LIT
     | TRUE
     | FALSE
+    | conversion
     | llamada
     | ID
     | LPAREN expresion RPAREN
@@ -158,6 +159,9 @@ factor
 // ---------- Llamada a metodo:  sumar(1, x + 2) ----------
 llamada    : ID LPAREN argumentos? RPAREN ;
 argumentos : expresion ( COMMA expresion )* ;
+
+// ---------- Conversion explicita:  static_cast<float>(x) ----------
+conversion : STATIC_CAST LT tipo GT LPAREN expresion RPAREN ;
 
 /* =====================================================================
    REGLAS DEL LEXER (MAYUSCULAS)
@@ -195,6 +199,7 @@ TRUE     : 'true';
 FALSE    : 'false';
 USING    : 'using';
 NAMESPACE: 'namespace';
+STATIC_CAST : 'static_cast';
 
 // ---------- Literales numéricos ----------
 FLOAT_LIT : [0-9]+ '.' [0-9]+ ([eE] [+-]? [0-9]+)?
